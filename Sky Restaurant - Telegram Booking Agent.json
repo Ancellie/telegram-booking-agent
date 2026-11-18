@@ -1,0 +1,853 @@
+{
+  "name": "Sky Restaurant - Telegram Booking Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "60ff79f0-74f1-443f-959d-6a9afc5eaafb",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 384],
+      "webhookId": "5b279a31-f1bc-4d22-95ac-555ac95ab8ad",
+      "credentials": {
+        "telegramApi": {
+          "id": "2gMTAmzC0hI3XFlK",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Sky Restaurant booking agent\n\n**Python logic lives in the sky-agent-api container.**\nn8n handles: Telegram I/O, Google Sheets, Groq LLM calls, voice STT/TTS.\n\n**Run**\n1. Fill a Bookings row (booking_id, restaurant, guest_name, party_size, date or 'today', time, timezone, manager_username, owner_username, status=unconfirmed).\n2. Activate the workflow. Manager sends /start to the bot.\n3. test_mode=yes: the owner account is treated as the manager (solo test).",
+        "height": 280,
+        "width": 440
+      },
+      "id": "c1320c56-454f-4d93-af1f-eb1e7837b78f",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "cachedResultName": "Sky Restaurant",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw/edit?usp=drivesdk",
+          "mode": "list",
+          "value": "1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "cachedResultName": "Bookings",
+          "mode": "list",
+          "value": "gid=0"
+        },
+        "options": {
+          "outputFormatting": {
+            "values": {
+              "general": "FORMATTED_VALUE",
+              "date": "FORMATTED_STRING"
+            }
+          }
+        }
+      },
+      "id": "1a7d6ffb-6055-49e8-b511-f5b71f5a5a8a",
+      "name": "Get Bookings",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [224, 384],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zkfNkIjxxhCPvAKi",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ Object.assign({}, $json, { update: $('Telegram Trigger').first().json, settings: { llm_model: 'openai/gpt-oss-120b', stt_model: 'whisper-large-v3-turbo', tts_model: 'canopylabs/orpheus-v1-english', tts_voice: 'hannah', history_limit: 24 } }) }}",
+        "options": {}
+      },
+      "id": "2f760dcb-8113-4c1d-b3c8-58271ad6f861",
+      "name": "Attach Update",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [448, 384]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://sky-agent-api:8000/api/resolve-context",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ items: $('Attach Update').all().map(item => ({ json: item.json })) }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f562b1f0-fab5-4f3f-8e8e-5b4c1155bd89",
+      "name": "Resolve Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [672, 384],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "skip-check-1",
+              "leftValue": "={{ $json.skip }}",
+              "operator": {
+                "operation": "false",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "54b7be0b-1ddd-4e19-b8ce-2656be3d9304",
+      "name": "Has Context?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [896, 384]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $json.context }}",
+        "options": {}
+      },
+      "id": "d099f4bf-f0a1-4ae9-b93a-2222222222",
+      "name": "Flatten Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [1120, 384]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "cachedResultName": "Sky Restaurant",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw/edit?usp=drivesdk",
+          "mode": "list",
+          "value": "1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "cachedResultName": "Logs",
+          "mode": "list",
+          "value": 687015989
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "booking_id",
+              "lookupValue": "={{ $json.row.booking_id }}"
+            }
+          ]
+        },
+        "options": {
+          "outputFormatting": {
+            "values": {
+              "general": "FORMATTED_VALUE",
+              "date": "FORMATTED_STRING"
+            }
+          }
+        }
+      },
+      "id": "b366366e-e286-47a8-a56c-146d72d1a760",
+      "name": "Get History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1344, 384],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zkfNkIjxxhCPvAKi",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "history",
+        "options": {}
+      },
+      "id": "3bde2450-1ae5-4b21-8b24-1b7008b1c097",
+      "name": "Aggregate History",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1568, 384]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ Object.assign({}, $('Flatten Context').first().json, { history: $json.history }) }}",
+        "options": {}
+      },
+      "id": "d099f4bf-f0a1-4ae9-b93a-fe41344b94dc",
+      "name": "Attach Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [1792, 384]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ab18f9f7-9357-4b29-9c63-67fecf5ed189",
+              "leftValue": "={{ $json.is_voice }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "5b7161d8-6df9-4473-bbfd-22fcfe2ea466",
+      "name": "Is Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2016, 384]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "a35c5b44-94f7-420c-9c87-b7e33d08d122",
+      "name": "Download Voice",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2240, 240],
+      "webhookId": "37a8ef3f-5746-4c90-a044-ad48f48d1979",
+      "credentials": {
+        "telegramApi": {
+          "id": "2gMTAmzC0hI3XFlK",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "for (const item of $input.all()) {\n  if (item.binary?.data) {\n    item.binary.data.fileName = 'voice.ogg';\n    item.binary.data.mimeType = 'audio/ogg';\n    item.binary.data.fileExtension = 'ogg';\n  }\n}\nreturn $input.all();"
+      },
+      "id": "89614b27-3faf-4260-b842-f3cff961cbdd",
+      "name": "Fix Audio Name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2464, 240],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "={{ $('Attach Context').first().json.settings.stt_model }}"
+            },
+            {
+              "name": "response_format",
+              "value": "json"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1be3e14d-a10b-4f24-88b8-e1a4e318a29f",
+      "name": "Transcribe Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2688, 240],
+      "credentials": {
+        "groqApi": {
+          "id": "dQbjHgWsTi3TwVgJ",
+          "name": "Groq account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ Object.assign({}, $('Attach Context').first().json, { text: String($json.text || '') }) }}",
+        "options": {}
+      },
+      "id": "2d28ad4e-7c6b-4aff-88fa-9d896e32b577",
+      "name": "Voice Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [2912, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://sky-agent-api:8000/api/build-prompt",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ context: $json }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "5ec3cdab-b5bd-47ce-af76-80a30397664b",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3136, 384]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.llm_body) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "d2f3e30f-1694-4106-b63b-012305e35449",
+      "name": "Groq LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3360, 384],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "groqApi": {
+          "id": "dQbjHgWsTi3TwVgJ",
+          "name": "Groq account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => { const c = String(($json.choices && $json.choices[0] && $json.choices[0].message && $json.choices[0].message.content) || ''); let p = null; try { p = JSON.parse(c.slice(c.indexOf('{'), c.lastIndexOf('}') + 1)); } catch (e) { p = null; } const em = typeof $json.error === 'string' ? $json.error : (($json.error && $json.error.message) || ''); return { ctx: $('Build Prompt').first().json.ctx, p: p, llm_err: String(em) }; })() }}",
+        "options": {}
+      },
+      "id": "ac9aa657-b8ad-4824-af59-be6cbb3b2152",
+      "name": "Parse LLM",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [3584, 384]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://sky-agent-api:8000/api/parse-reply",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ context: $json.ctx, parsed: $json.p, llm_error: $json.llm_err || '' }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "aea27128-b0e8-4def-891d-1ae3b5d1cf25",
+      "name": "Parse Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3808, 384]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c3a1d2f0-5b4e-4a77-9c11-0d2f6a1e8b01",
+              "leftValue": "={{ $json.send_manager }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "5a527e5f-a360-4045-8b48-10bb386eeb7f",
+      "name": "Has Manager Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [4032, 384]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Reply').first().json.manager_chat }}",
+        "text": "={{ $('Parse Reply').first().json.reply }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ddd4497c-c898-48b5-8716-4eb864118493",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [4256, 288],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "webhookId": "0db305e7-baa4-453c-a978-66c6796be840",
+      "credentials": {
+        "telegramApi": {
+          "id": "2gMTAmzC0hI3XFlK",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $('Parse Reply').first().json.booking_row }}",
+        "options": {}
+      },
+      "id": "4a924fff-c2b4-4064-accc-9fd5699fc410",
+      "name": "Booking Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [4480, 384]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "cachedResultName": "Sky Restaurant",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw/edit?usp=drivesdk",
+          "mode": "list",
+          "value": "1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "cachedResultName": "Bookings",
+          "mode": "list",
+          "value": "gid=0"
+        },
+        "columns": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true,
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": ["booking_id"],
+          "schema": [
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "booking_id", "id": "booking_id", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "status", "id": "status", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "manager_chat_id", "id": "manager_chat_id", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "owner_chat_id", "id": "owner_chat_id", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "needs_info", "id": "needs_info", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "open_question", "id": "open_question", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "last_manager_message", "id": "last_manager_message", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "last_agent_message", "id": "last_agent_message", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "confirmed_at", "id": "confirmed_at", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "updated_at", "id": "updated_at", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "flags", "id": "flags", "required": false, "type": "string" }
+          ],
+          "value": {}
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "89c34a85-4c1b-45bd-83d8-f304f8dc833b",
+      "name": "Update Booking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [4704, 384],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zkfNkIjxxhCPvAKi",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $('Parse Reply').first().json.log_row }}",
+        "options": {}
+      },
+      "id": "b9859446-7831-4ef9-af59-db8e3a20133b",
+      "name": "Log Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [4928, 384]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "cachedResultName": "Sky Restaurant",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw/edit?usp=drivesdk",
+          "mode": "list",
+          "value": "1kvlKY8LyZdhvnnp8TqbGIW9qL_In1pNbNlCi-lO6WKw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "cachedResultName": "Logs",
+          "mode": "list",
+          "value": 687015989
+        },
+        "columns": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true,
+          "mappingMode": "autoMapInputData",
+          "schema": [
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "timestamp", "id": "timestamp", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "booking_id", "id": "booking_id", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "chat_id", "id": "chat_id", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "from", "id": "from", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "event", "id": "event", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "message_type", "id": "message_type", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "received", "id": "received", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "understood", "id": "understood", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "decision", "id": "decision", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "intent", "id": "intent", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "booking_status", "id": "booking_status", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "needs_info", "id": "needs_info", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "sent", "id": "sent", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "owner_message", "id": "owner_message", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "voice_reply", "id": "voice_reply", "required": false, "type": "string" },
+            { "canBeUsedToMatch": false, "defaultMatch": false, "display": true, "displayName": "flags", "id": "flags", "required": false, "type": "string" }
+          ],
+          "value": {}
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "7b7c4c6b-3db3-4b72-92b7-9cf55922d60b",
+      "name": "Append Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [5152, 384],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zkfNkIjxxhCPvAKi",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "b1d4d466-835a-4972-a9b0-1856a75d50bc",
+              "leftValue": "={{ $('Parse Reply').first().json.send_owner }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "3c462416-8677-4f08-82cf-c0dd78278b36",
+      "name": "Notify Owner?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [5376, 288]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Reply').first().json.owner_chat }}",
+        "text": "={{ $('Parse Reply').first().json.owner_msg }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "7c861c6b-a890-4eb8-a340-fc317c19f0c4",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [5600, 208],
+      "webhookId": "9a0e9509-e2b3-43dc-aacd-565167b665a9",
+      "credentials": {
+        "telegramApi": {
+          "id": "2gMTAmzC0hI3XFlK",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "d6aa4d5b-ab30-4d17-972d-ee92caf4c46d",
+              "leftValue": "={{ $('Parse Reply').first().json.send_voice }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "1945e32e-3b51-4f90-9884-d1e0c7752d56",
+      "name": "Send Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [5376, 528]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/speech",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Parse Reply').first().json.tts_model, voice: $('Parse Reply').first().json.tts_voice, input: $('Parse Reply').first().json.voice_text, response_format: 'wav' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "7c1b14bf-62e7-4e8d-b8fa-bab1b402cc53",
+      "name": "Generate Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [5600, 528],
+      "credentials": {
+        "groqApi": {
+          "id": "dQbjHgWsTi3TwVgJ",
+          "name": "Groq account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "sendAudio",
+        "chatId": "={{ $('Parse Reply').first().json.manager_chat }}",
+        "binaryData": true,
+        "additionalFields": {
+          "fileName": "reply.wav"
+        }
+      },
+      "id": "be358d68-58a5-4e9b-819a-a937607bba1b",
+      "name": "Send Voice",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [5824, 528],
+      "webhookId": "4ce9ad72-2aee-4708-91f6-daa06cf7df0a",
+      "credentials": {
+        "telegramApi": {
+          "id": "2gMTAmzC0hI3XFlK",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Get Bookings", "type": "main", "index": 0 }]]
+    },
+    "Get Bookings": {
+      "main": [[{ "node": "Attach Update", "type": "main", "index": 0 }]]
+    },
+    "Attach Update": {
+      "main": [[{ "node": "Resolve Context", "type": "main", "index": 0 }]]
+    },
+    "Resolve Context": {
+      "main": [[{ "node": "Has Context?", "type": "main", "index": 0 }]]
+    },
+    "Has Context?": {
+      "main": [
+        [{ "node": "Flatten Context", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Flatten Context": {
+      "main": [[{ "node": "Get History", "type": "main", "index": 0 }]]
+    },
+    "Get History": {
+      "main": [[{ "node": "Aggregate History", "type": "main", "index": 0 }]]
+    },
+    "Aggregate History": {
+      "main": [[{ "node": "Attach Context", "type": "main", "index": 0 }]]
+    },
+    "Attach Context": {
+      "main": [[{ "node": "Is Voice?", "type": "main", "index": 0 }]]
+    },
+    "Is Voice?": {
+      "main": [
+        [{ "node": "Download Voice", "type": "main", "index": 0 }],
+        [{ "node": "Build Prompt", "type": "main", "index": 0 }]
+      ]
+    },
+    "Download Voice": {
+      "main": [[{ "node": "Fix Audio Name", "type": "main", "index": 0 }]]
+    },
+    "Fix Audio Name": {
+      "main": [[{ "node": "Transcribe Voice", "type": "main", "index": 0 }]]
+    },
+    "Transcribe Voice": {
+      "main": [[{ "node": "Voice Text", "type": "main", "index": 0 }]]
+    },
+    "Voice Text": {
+      "main": [[{ "node": "Build Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Prompt": {
+      "main": [[{ "node": "Groq LLM", "type": "main", "index": 0 }]]
+    },
+    "Groq LLM": {
+      "main": [[{ "node": "Parse LLM", "type": "main", "index": 0 }]]
+    },
+    "Parse LLM": {
+      "main": [[{ "node": "Parse Reply", "type": "main", "index": 0 }]]
+    },
+    "Parse Reply": {
+      "main": [[{ "node": "Has Manager Reply?", "type": "main", "index": 0 }]]
+    },
+    "Has Manager Reply?": {
+      "main": [
+        [{ "node": "Send Reply", "type": "main", "index": 0 }],
+        [{ "node": "Booking Row", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Reply": {
+      "main": [[{ "node": "Booking Row", "type": "main", "index": 0 }]]
+    },
+    "Booking Row": {
+      "main": [[{ "node": "Update Booking", "type": "main", "index": 0 }]]
+    },
+    "Update Booking": {
+      "main": [[{ "node": "Log Row", "type": "main", "index": 0 }]]
+    },
+    "Log Row": {
+      "main": [[{ "node": "Append Log", "type": "main", "index": 0 }]]
+    },
+    "Append Log": {
+      "main": [
+        [
+          { "node": "Notify Owner?", "type": "main", "index": 0 },
+          { "node": "Send Voice?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Notify Owner?": {
+      "main": [[{ "node": "Notify Owner", "type": "main", "index": 0 }]]
+    },
+    "Send Voice?": {
+      "main": [[{ "node": "Generate Voice", "type": "main", "index": 0 }]]
+    },
+    "Generate Voice": {
+      "main": [[{ "node": "Send Voice", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "3a000000-0000-0000-0000-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "57eecb8f555f2a931685b45f089d82d990f149bfeeb7a632b4e922a1803c8616"
+  },
+  "nodeGroups": [],
+  "id": "TeHwsm7BJTwhQRZG",
+  "tags": []
+}

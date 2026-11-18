@@ -1,0 +1,42 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: booking-agent-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-skylight-strudel-tasty.ngrok-free.dev}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+      - N8N_PORT=5678
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-https://skylight-strudel-tasty.ngrok-free.dev/}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-https://skylight-strudel-tasty.ngrok-free.dev/}
+      - N8N_PROXY_HOPS=1
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN:-${RUNNERS_TOKEN:-secret_token_booking_agent}}
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  task-runners:
+    image: n8nio/runners:latest
+    container_name: booking-agent-runners
+    restart: unless-stopped
+    depends_on:
+      - n8n
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN:-${RUNNERS_TOKEN:-secret_token_booking_agent}}
+
+  sky-agent-api:
+    build: .
+    container_name: sky-agent-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - n8n
+
+volumes:
+  n8n_data:
