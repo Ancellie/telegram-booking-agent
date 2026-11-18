@@ -1,30 +1,39 @@
-from fastapi import FastAPI, HTTPException
-from app.schemas.requests import ResolveContextRequest, BuildPromptRequest, ParseReplyRequest
-from app.services.agent import resolve_context, build_clock, build_prompt, parse_reply
+import asyncio
+import logging
 
-app = FastAPI(title="Sky Restaurant Booking Agent API", version="1.0.0")
+import httpx
 
-@app.get("/health")
-def health():
-    return {"ok": True, "service": "sky-restaurant-agent"}
+from . import config, store
+from .agent import Agent
+from .telegram import TG
 
-@app.post("/api/resolve-context")
-def resolve(payload: ResolveContextRequest):
-    result = resolve_context(payload.items)
-    if result is None:
-        return {"skip": True, "context": None}
-    return {"skip": False, "context": build_clock(result)}
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-@app.post("/api/build-prompt")
-def prompt(payload: BuildPromptRequest):
-    try:
-        return build_prompt(payload.context)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Could not build prompt: {exc}")
+logging.getLogger("httpx").setLevel(logging.WARNING)  # httpx logs full URLs incl. the bot token
 
-@app.post("/api/parse-reply")
-def parse(payload: ParseReplyRequest):
-    try:
-        return parse_reply(payload.context, payload.parsed, payload.llm_error)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Could not parse LLM reply: {exc}")
+
+async def main():
+    assert config.TELEGRAM_TOKEN and config.GROQ_API_KEY, "Set TELEGRAM_BOT_TOKEN and GROQ_API_KEY"
+    store.init()
+    async with httpx.AsyncClient() as client:
+        tg = TG(client)
+        await tg.call("deleteWebhook")  # long polling cannot coexist with a webhook (e.g. an old n8n trigger)
+        agent, offset = Agent(client, tg), None
+        logging.info("Agent started. Manager: @%s", config.MANAGER_USERNAME)
+        while True:
+            try:
+                updates = await tg.updates(offset)
+            except Exception:  # noqa: BLE001
+                logging.exception("getUpdates failed")
+                await asyncio.sleep(3)
+                continue
+            for u in updates:
+                offset = u["update_id"] + 1
+                try:
+                    await agent.handle(u)
+                except Exception:  # noqa: BLE001
+                    logging.exception("handling update failed")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
